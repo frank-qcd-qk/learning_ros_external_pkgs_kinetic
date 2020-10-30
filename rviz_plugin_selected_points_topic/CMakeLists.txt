@@ -10,7 +10,7 @@ include_directories(${catkin_INCLUDE_DIRS})
 link_directories(${catkin_LIBRARY_DIRS})
 
 ## This plugin includes Qt widgets, so we must include Qt like so:
-find_package(Qt4 COMPONENTS QtCore QtGui REQUIRED)
+find_package(Qt5Core Qt5Widgets REQUIRED)
 include(${QT_USE_FILE})
 
 ## I prefer the Qt signals and slots to avoid defining "emit", "slots",
@@ -19,7 +19,7 @@ add_definitions(-DQT_NO_KEYWORDS)
 
 ## Here we specify which header files need to be run through "moc",
 ## Qt's meta-object compiler.
-qt4_wrap_cpp(MOC_FILES
+qt5_wrap_cpp(MOC_FILES
   src/selected_points_topic.h
 )
 
