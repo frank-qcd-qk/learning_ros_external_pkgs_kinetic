@@ -125,6 +125,10 @@ void GazeboRosCameraUtils::Load(sensors::SensorPtr _parent,
   if (this->sdf->HasElement("imageTopicName"))
     this->image_topic_name_ = this->sdf->Get<std::string>("imageTopicName");
 
+  this->trigger_topic_name_ = "image_trigger";
+  if (this->sdf->HasElement("triggerTopicName"))
+    this->trigger_topic_name_ = this->sdf->Get<std::string>("triggerTopicName");
+
   this->camera_info_topic_name_ = "camera_info";
   if (this->sdf->HasElement("cameraInfoTopicName"))
     this->camera_info_topic_name_ =
@@ -232,6 +236,15 @@ void GazeboRosCameraUtils::Load(sensors::SensorPtr _parent,
   else
     this->distortion_t2_ = this->sdf->Get<double>("distortionT2");
 
+  // TODO: make default behavior auto_distortion_ = true
+  if (!this->sdf->HasElement("autoDistortion"))
+  {
+    ROS_DEBUG_NAMED("camera_utils", "Camera plugin missing <autoDistortion>, defaults to false");
+    this->auto_distortion_ = false;
+  }
+  else
+    this->auto_distortion_ = this->sdf->Get<bool>("autoDistortion");
+
   if (!this->sdf->HasElement("borderCrop"))
   {
     ROS_DEBUG_NAMED("camera_utils", "Camera plugin missing <borderCrop>, defaults to true");
@@ -282,10 +295,6 @@ void GazeboRosCameraUtils::LoadThread()
 
   // resolve tf prefix
   this->tf_prefix_ = tf::getPrefixParam(*this->rosnode_);
-  if(this->tf_prefix_.empty()) {
-      this->tf_prefix_ = this->robot_namespace_;
-      boost::trim_right_if(this->tf_prefix_,boost::is_any_of("/"));
-  }
   this->frame_name_ = tf::resolve(this->tf_prefix_, this->frame_name_);
 
   ROS_INFO_NAMED("camera_utils", "Camera Plugin (ns = %s)  <tf_prefix_>, set to \"%s\"",
@@ -346,14 +355,43 @@ void GazeboRosCameraUtils::LoadThread()
   this->cameraUpdateRateSubscriber_ = this->rosnode_->subscribe(rate_so);
   */
 
+  if (this->CanTriggerCamera())
+  {
+    ros::SubscribeOptions trigger_so =
+      ros::SubscribeOptions::create<std_msgs::Empty>(
+          this->trigger_topic_name_, 1,
+          boost::bind(&GazeboRosCameraUtils::TriggerCameraInternal, this, _1),
+          ros::VoidPtr(), &this->camera_queue_);
+    this->trigger_subscriber_ = this->rosnode_->subscribe(trigger_so);
+  }
+
   this->Init();
+}
+
+void GazeboRosCameraUtils::TriggerCamera()
+{
+}
+
+bool GazeboRosCameraUtils::CanTriggerCamera()
+{
+  return false;
+}
+
+void GazeboRosCameraUtils::TriggerCameraInternal(
+    const std_msgs::Empty::ConstPtr &dummy)
+{
+  TriggerCamera();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Set Horizontal Field of View
 void GazeboRosCameraUtils::SetHFOV(const std_msgs::Float64::ConstPtr& hfov)
 {
+#if GAZEBO_MAJOR_VERSION >= 7
   this->camera_->SetHFOV(ignition::math::Angle(hfov->data));
+#else
+  this->camera_->SetHFOV(gazebo::math::Angle(hfov->data));
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -406,20 +444,30 @@ void GazeboRosCameraUtils::Init()
     this->update_period_ = 0.0;
 
   // set buffer size
-  if (this->format_ == "L8")
+  if (this->format_ == "L8" || this->format_ == "L_INT8")
   {
     this->type_ = sensor_msgs::image_encodings::MONO8;
     this->skip_ = 1;
   }
-  else if (this->format_ == "R8G8B8")
+  else if (this->format_ == "L16" || this->format_ == "L_INT16")
+  {
+    this->type_ = sensor_msgs::image_encodings::MONO16;
+    this->skip_ = 2;
+  }
+  else if (this->format_ == "R8G8B8" || this->format_ == "RGB_INT8")
   {
     this->type_ = sensor_msgs::image_encodings::RGB8;
     this->skip_ = 3;
   }
-  else if (this->format_ == "B8G8R8")
+  else if (this->format_ == "B8G8R8" || this->format_ == "BGR_INT8")
   {
     this->type_ = sensor_msgs::image_encodings::BGR8;
     this->skip_ = 3;
+  }
+  else if (this->format_ == "R16G16B16" ||  this->format_ == "RGB_INT16")
+  {
+    this->type_ = sensor_msgs::image_encodings::RGB16;
+    this->skip_ = 6;
   }
   else if (this->format_ == "BAYER_RGGB8")
   {
@@ -505,6 +553,25 @@ void GazeboRosCameraUtils::Init()
   if(this->camera_->LensDistortion())
   {
     this->camera_->LensDistortion()->SetCrop(this->border_crop_);
+  }
+
+  // Get distortion parameters from gazebo sensor if auto_distortion is true
+  if(this->auto_distortion_)
+  {
+#if GAZEBO_MAJOR_VERSION >= 8
+    this->distortion_k1_ = this->camera_->LensDistortion()->K1();
+    this->distortion_k2_ = this->camera_->LensDistortion()->K2();
+    this->distortion_k3_ = this->camera_->LensDistortion()->K3();
+    this->distortion_t1_ = this->camera_->LensDistortion()->P1();
+    this->distortion_t2_ = this->camera_->LensDistortion()->P2();
+#else
+    // TODO: remove version gaurd once gazebo7 is not supported
+    this->distortion_k1_ = this->camera_->LensDistortion()->GetK1();
+    this->distortion_k2_ = this->camera_->LensDistortion()->GetK2();
+    this->distortion_k3_ = this->camera_->LensDistortion()->GetK3();
+    this->distortion_t1_ = this->camera_->LensDistortion()->GetP1();
+    this->distortion_t2_ = this->camera_->LensDistortion()->GetP2();
+#endif
   }
 
   // D = {k1, k2, t1, t2, k3}, as specified in:

@@ -27,6 +27,9 @@
  **/
 #include <boost/algorithm/string.hpp>
 #include <gazebo_plugins/gazebo_ros_joint_state_publisher.h>
+#ifdef ENABLE_PROFILER
+#include <ignition/common/Profiler.hh>
+#endif
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_listener.h>
 
@@ -85,7 +88,11 @@ void GazeboRosJointStatePublisher::Load ( physics::ModelPtr _parent, sdf::Elemen
 #endif
 
     for ( unsigned int i = 0; i< joint_names_.size(); i++ ) {
-        joints_.push_back ( this->parent_->GetJoint ( joint_names_[i] ) );
+        physics::JointPtr joint = this->parent_->GetJoint(joint_names_[i]);
+        if (!joint) {
+            ROS_FATAL_NAMED("joint_state_publisher", "Joint %s does not exist!", joint_names_[i].c_str());
+        }
+        joints_.push_back ( joint );
         ROS_INFO_NAMED("joint_state_publisher", "GazeboRosJointStatePublisher is going to publish joint: %s", joint_names_[i].c_str() );
     }
 
@@ -105,20 +112,34 @@ void GazeboRosJointStatePublisher::Load ( physics::ModelPtr _parent, sdf::Elemen
                                  boost::bind ( &GazeboRosJointStatePublisher::OnUpdate, this, _1 ) );
 }
 
-void GazeboRosJointStatePublisher::OnUpdate ( const common::UpdateInfo & _info ) {
+void GazeboRosJointStatePublisher::OnUpdate ( const common::UpdateInfo & _info )
+{
+#ifdef ENABLE_PROFILER
+  IGN_PROFILE("GazeboRosCamera::OnNewFrame");
+#endif
     // Apply a small linear velocity to the model.
 #if GAZEBO_MAJOR_VERSION >= 8
     common::Time current_time = this->world_->SimTime();
 #else
     common::Time current_time = this->world_->GetSimTime();
 #endif
+    if (current_time < last_update_time_)
+    {
+        ROS_WARN_NAMED("joint_state_publisher", "Negative joint state update time difference detected.");
+        last_update_time_ = current_time;
+    }
+
     double seconds_since_last_update = ( current_time - last_update_time_ ).Double();
+
     if ( seconds_since_last_update > update_period_ ) {
-
+#ifdef ENABLE_PROFILER
+        IGN_PROFILE_BEGIN("publishJointStates");
+#endif
         publishJointStates();
-
+#ifdef ENABLE_PROFILER
+        IGN_PROFILE_END();
+#endif
         last_update_time_+= common::Time ( update_period_ );
-
     }
 
 }
@@ -129,9 +150,11 @@ void GazeboRosJointStatePublisher::publishJointStates() {
     joint_state_.header.stamp = current_time;
     joint_state_.name.resize ( joints_.size() );
     joint_state_.position.resize ( joints_.size() );
+    joint_state_.velocity.resize ( joints_.size() );
 
     for ( int i = 0; i < joints_.size(); i++ ) {
         physics::JointPtr joint = joints_[i];
+        double velocity = joint->GetVelocity( 0 );
 #if GAZEBO_MAJOR_VERSION >= 8
         double position = joint->Position ( 0 );
 #else
@@ -139,6 +162,7 @@ void GazeboRosJointStatePublisher::publishJointStates() {
 #endif
         joint_state_.name[i] = joint->GetName();
         joint_state_.position[i] = position;
+        joint_state_.velocity[i] = velocity;
     }
     joint_state_publisher_.publish ( joint_state_ );
 }

@@ -2,13 +2,48 @@
 Changelog for package gazebo_msgs
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-2.5.14 (2017-12-11)
--------------------
+2.9.1 (2020-05-20)
+------------------
 
-2.5.13 (2017-06-24)
--------------------
-* Add catkin package(s) to provide the default version of Gazebo (`#571 <https://github.com/ros-simulation/gazebo_ros_pkgs/issues/571>`_)
-  * Added catkin package gazebo_dev which provides the cmake config of the installed Gazebo version
+2.9.0 (2020-05-19)
+------------------
+* Bump CMake version to avoid CMP0048 warning (`#1066 <https://github.com/ros-simulation/gazebo_ros_pkgs/issues/1066>`_)
+* add additional light options to 'set_light_properties' service (`#874 <https://github.com/ros-simulation/gazebo_ros_pkgs/issues/874>`_)
+  The optional 'Light' properties 'cast_shadows', 'specular', 'direction',
+  and 'pose' are not optional any more. These properties are now set via the
+  corresponding fields in the ROS message. By default, this will be 0.
+  https://github.com/ros-simulation/gazebo_ros_pkgs/pull/874
+* Contributors: Alejandro Hernández Cordero, Christian Rauch
+
+2.8.5 (2019-06-04)
+------------------
+
+2.8.4 (2018-07-06)
+------------------
+* Correct documentation on SetModelConfiguration.srv
+* Contributors: Kevin Allen
+
+2.8.3 (2018-06-04)
+------------------
+
+2.8.2 (2018-05-09)
+------------------
+
+2.8.1 (2018-05-05)
+------------------
+
+2.7.4 (2018-02-12)
+------------------
+
+2.7.3 (2017-12-11)
+------------------
+
+2.7.2 (2017-05-21)
+------------------
+
+2.7.1 (2017-04-28)
+------------------
+* Add catkin package(s) to provide the default version of Gazebo - take II (kinetic-devel) (`#571 <https://github.com/ros-simulation/gazebo_ros_pkgs/issues/571>`_)
 * Contributors: Jose Luis Rivero
 
 2.5.12 (2017-04-25)

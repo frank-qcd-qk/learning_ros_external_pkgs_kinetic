@@ -26,7 +26,9 @@
 
 #include <std_msgs/Bool.h>
 #include <gazebo_plugins/gazebo_ros_vacuum_gripper.h>
-
+#ifdef ENABLE_PROFILER
+#include <ignition/common/Profiler.hh>
+#endif
 
 namespace gazebo
 {
@@ -171,14 +173,26 @@ bool GazeboRosVacuumGripper::OffServiceCallback(std_srvs::Empty::Request &req,
 // Update the controller
 void GazeboRosVacuumGripper::UpdateChild()
 {
+#ifdef ENABLE_PROFILER
+  IGN_PROFILE("GazeboRosVacuumGripper::UpdateChild");
+#endif
   std_msgs::Bool grasping_msg;
   grasping_msg.data = false;
   if (!status_) {
+#ifdef ENABLE_PROFILER
+    IGN_PROFILE_BEGIN("publish status");
+#endif
     pub_.publish(grasping_msg);
+#ifdef ENABLE_PROFILER
+    IGN_PROFILE_END();
+#endif
     return;
   }
   // apply force
   lock_.lock();
+#ifdef ENABLE_PROFILER
+  IGN_PROFILE_BEGIN("apply force");
+#endif
 #if GAZEBO_MAJOR_VERSION >= 8
   ignition::math::Pose3d parent_pose = link_->WorldPose();
   physics::Model_V models = world_->Models();
@@ -203,13 +217,9 @@ void GazeboRosVacuumGripper::UpdateChild()
       double norm = diff.Pos().Length();
       if (norm < 0.05) {
 #if GAZEBO_MAJOR_VERSION >= 8
-        links[j]->SetLinearAccel(link_->WorldLinearAccel());
-        links[j]->SetAngularAccel(link_->WorldAngularAccel());
         links[j]->SetLinearVel(link_->WorldLinearVel());
         links[j]->SetAngularVel(link_->WorldAngularVel());
 #else
-        links[j]->SetLinearAccel(link_->GetWorldLinearAccel());
-        links[j]->SetAngularAccel(link_->GetWorldAngularAccel());
         links[j]->SetLinearVel(link_->GetWorldLinearVel());
         links[j]->SetAngularVel(link_->GetWorldAngularVel());
 #endif
@@ -229,7 +239,14 @@ void GazeboRosVacuumGripper::UpdateChild()
       }
     }
   }
+#ifdef ENABLE_PROFILER
+  IGN_PROFILE_END();
+  IGN_PROFILE_BEGIN("publish grasping_msg");
+#endif
   pub_.publish(grasping_msg);
+#ifdef ENABLE_PROFILER
+  IGN_PROFILE_END();
+#endif
   lock_.unlock();
 }
 

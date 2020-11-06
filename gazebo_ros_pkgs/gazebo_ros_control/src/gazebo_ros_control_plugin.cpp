@@ -44,6 +44,8 @@
 
 #include <gazebo_ros_control/gazebo_ros_control_plugin.h>
 #include <urdf/model.h>
+#include <chrono>
+#include <thread>
 
 namespace gazebo_ros_control
 {
@@ -109,6 +111,9 @@ void GazeboRosControlPlugin::Load(gazebo::physics::ModelPtr parent, sdf::Element
     robot_hw_sim_type_str_ = "gazebo_ros_control/DefaultRobotHWSim";
     ROS_DEBUG_STREAM_NAMED("loadThread","Using default plugin for RobotHWSim (none specified in URDF/SDF)\""<<robot_hw_sim_type_str_<<"\"");
   }
+
+  // temporary fix to bug regarding the robotNamespace in default_robot_hw_sim.cpp (see #637)
+  std::string robot_ns = robot_namespace_;
 
   // Get the Gazebo simulation period
 #if GAZEBO_MAJOR_VERSION >= 8
@@ -177,7 +182,7 @@ void GazeboRosControlPlugin::Load(gazebo::physics::ModelPtr parent, sdf::Element
     urdf::Model urdf_model;
     const urdf::Model *const urdf_model_ptr = urdf_model.initString(urdf_string) ? &urdf_model : NULL;
 
-    if(!robot_hw_sim_->initSim(robot_namespace_, model_nh_, parent_model_, urdf_model_ptr, transmissions_))
+    if(!robot_hw_sim_->initSim(robot_ns, model_nh_, parent_model_, urdf_model_ptr, transmissions_))
     {
       ROS_FATAL_NAMED("gazebo_ros_control","Could not initialize robot simulation interface");
       return;
@@ -284,7 +289,7 @@ std::string GazeboRosControlPlugin::getURDF(std::string param_name) const
       model_nh_.getParam(param_name, urdf_string);
     }
 
-    usleep(100000);
+    std::this_thread::sleep_for(std::chrono::microseconds(100000));
   }
   ROS_DEBUG_STREAM_NAMED("gazebo_ros_control", "Recieved urdf from param server, parsing...");
 
